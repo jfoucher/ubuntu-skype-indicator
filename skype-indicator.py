@@ -125,15 +125,22 @@ class skypeIndicator:
 			for eachmsg in self.unread[name][::-1]:
 				msgbody += eachmsg.Body + "\n"
 			self.indicator[name].set_property("body", msgbody)
+			if self.count[name] > 1:
+				self.indicator[name].set_property("count", str(self.count[name]))
+			
+
+
+
 			if self.count[name] > self.oldcount[name]:
 				self.notifShown[name]=False
 
 			if not self.notifShown.get(name, False) and self.showNotification(self.fullname, msgbody, self.file):
 				self.notifShown[name]=True
 				self.indicator[name].set_property("draw-attention", "true")
-				print "notif shown for", name
+				self.indicator[name].show()
+				print "notification shown for", name
 
-			#self.count[name]=0
+			print "%d messages from %s" %(self.count[name],name)
 				
 			#print self.indicator[name].get_property("sender")
 
