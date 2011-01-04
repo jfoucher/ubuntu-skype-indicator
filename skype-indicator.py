@@ -38,6 +38,9 @@ import os
 
 class skypeIndicator:
 	notifShown={}
+	oldcount={}
+	count={}
+	indicator={}
 	def __init__(self):
 		# get skype control
 		self.skype= Skype4Py.Skype()
@@ -53,7 +56,7 @@ class skypeIndicator:
 		except:
 			print "Please open skype first"
 			#gtk.main_quit()
-		sys.exit(-1)
+			sys.exit(-1)
 
 		
 
@@ -77,44 +80,64 @@ class skypeIndicator:
 		#indicator.connect("user-display", self.display_msg)
 
 	def create_indicators(self):
-		print "creating indicators"
+
+		self.count={}
 		self.get_messages()
-		self.indicator={}
 		for name in self.unread:
-			msg=self.unread[name]
 
-			self.indicator[name] = indicate.Indicator()
-#			for slot in dir(self.indicator[name]):
-#				attr = getattr(self.indicator[name], slot)
-#				print attr
-			fullname=self.name_from_handle(name)
-			self.indicator[name].set_property("subtype", "im")
-			self.indicator[name].set_property("sender", fullname )
-			self.indicator[name].set_property("handle", name)
-			user=self.user_from_handle(name)
+			msg=self.unread[name][0]
 
-			#print file
-			try:
-				file=name + '.jpg'
-				user.SaveAvatarToFile(file)
-			except Skype4Py.errors.ISkypeError:
-				h=hashlib.md5(name).hexdigest()
-				urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/32' % h,name + 'jpg')
-				file=name + 'jpg'
+			if name not in self.count:
+				self.count[name]=0
+			if name not in self.oldcount:
+				self.oldcount[name]=0
 
-			#print file
-			pixbuf=gtk.gdk.pixbuf_new_from_file(file)
-			self.indicator[name].set_property_icon("icon", pixbuf)
-			self.indicator[name].set_property("body", msg.Body)
-			self.indicator[name].set_property_time("time", msg.Timestamp)
-			self.indicator[name].show()
-			self.indicator[name].connect("user-display", self.display_msg)
-			self.indicator[name].set_property("draw-attention", "true")
-			if not self.notifShown.get(name, False) and self.showNotification(fullname, msg.Body):
-				self.notifShown[name]=True
-				print "notif shown for", name
+			if not name in self.indicator:
+				self.indicator[name] = indicate.Indicator()
+				print "creating indicator"
+	#			for slot in dir(self.indicator[name]):
+	#				attr = getattr(self.indicator[name], slot)
+	#				print attr
+				self.fullname=self.name_from_handle(name)
+				self.indicator[name].set_property("subtype", "im")
+				self.indicator[name].set_property("sender", self.fullname )
+				self.indicator[name].set_property("handle", name)
+				user=self.user_from_handle(name)
+
+
+				try:
+					self.file=name + '.jpg'
+					user.SaveAvatarToFile(file)
+				except Skype4Py.errors.ISkypeError:
+					h=hashlib.md5(name).hexdigest()
+					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h,name + 'jpg')
+					self.file=name + 'jpg'
+
+				pixbuf=gtk.gdk.pixbuf_new_from_file(self.file)
+				self.indicator[name].set_property_icon("icon", pixbuf)
+
+
+				self.indicator[name].set_property_time("time", msg.Timestamp)
+				self.indicator[name].show()
+				self.indicator[name].connect("user-display", self.display_msg)
 				
-			print self.indicator[name].get_property("sender")
+			msgbody = ''
+			for eachmsg in self.unread[name][::-1]:
+				msgbody += eachmsg.Body + "\n"
+			self.indicator[name].set_property("body", msgbody)
+			if self.count[name] > self.oldcount[name]:
+				self.notifShown[name]=False
+
+			if not self.notifShown.get(name, False) and self.showNotification(self.fullname, msgbody, self.file):
+				self.notifShown[name]=True
+				self.indicator[name].set_property("draw-attention", "true")
+				print "notif shown for", name
+
+			#self.count[name]=0
+				
+			#print self.indicator[name].get_property("sender")
+
+		self.oldcount=self.count
 		return True
 		#print name
 
@@ -130,11 +153,12 @@ class skypeIndicator:
 	def user_from_handle(self,handle):
 		return self.skype.User(handle)
 
-	def showNotification(self, title, message):
+	def showNotification(self, title, message,file=None):
 		'''takes a title and a message to display the email notification. Returns the
         created notification object'''
 
 		n = pynotify.Notification(title, message, "notification-message-im")
+		n.set_property("icon-name",os.getcwd() + "/" + file)
 		n.show()
 
 		return n
@@ -142,12 +166,20 @@ class skypeIndicator:
 	def get_messages(self):
 		print "checking messages"
 		self.unread={}
+
 		#print self.skype.MissedMessages
 		for msg in self.skype.MissedMessages:
 			display_name = msg.FromHandle
-			if not display_name in self.unread:
-				self.unread[display_name]=msg
+			if display_name not in self.count:
+				self.count[display_name]=0
 
+
+
+			if not display_name in self.unread:
+				self.unread[display_name]=[]
+			
+			self.unread[display_name].append(msg)
+			self.count[display_name]+=1
 		#print self.unread
 		return self.unread
 
