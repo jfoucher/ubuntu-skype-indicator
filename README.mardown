@@ -1,4 +1,4 @@
-This indicator plugin allows you to view your skype[0] missed chats and missed calls in your system wide messaging indicator
+This indicator plugin allows you to view your [skype](http://skype.com) missed chats and missed calls in your system wide messaging indicator
 
 Installation:
 Copy the script to a folder on your computer. Double click on it to open. If asked whether to display, run in terminal, or run, choose "Run"
@@ -13,6 +13,5 @@ TODO :
 - Manage missed calls as well
 - Remove skype icon from notification area ? is that even possible ?
 
-(C) 2010 Jonathan Foucher
+(C) 2010 [Jonathan Foucher](http://jfoucher.fr)
 
-[0] http://skype.com
