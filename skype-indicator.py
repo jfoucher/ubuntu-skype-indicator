@@ -41,25 +41,13 @@ class skypeIndicator:
 	oldcount={}
 	count={}
 	indicator={}
+
 	def __init__(self):
-		# get skype control
+		#self.no_skype()
+		#get skype control
 		self.skype= Skype4Py.Skype()
-		try:
-			if not self.skype.Client.IsRunning:
-				self.skype.Client.Start()
-		except:
-			print "Please open skype first"
-			#gtk.main_quit()
-			sys.exit(-1)
-		try:
-			self.skype.Attach()
-		except:
-			print "Please open skype first"
-			#gtk.main_quit()
-			sys.exit(-1)
-
 		
-
+		self.loadSkype()
 
 		#create notification icon
 
@@ -78,11 +66,31 @@ class skypeIndicator:
 		self.create_indicators()
 		#pass
 		#indicator.connect("user-display", self.display_msg)
+	def loadSkype(self):
+		try:
+			if not self.skype.Client.IsRunning:
+				self.skype.Client.Start()
+		except:
+			#
+			print "Please open skype first", gtk.STOCK_DIALOG_ERROR
+			self.noSkype()
+
+
+
+		try:
+			self.skype.Attach()
+		except Skype4Py.errors.ISkypeAPIError:
+			print "Please open skype first", gtk.STOCK_DIALOG_ERROR
+			self.noSkype()
+			#pass
 
 	def create_indicators(self):
 
 		self.count={}
+
 		self.get_messages()
+
+			
 		for name in self.unread:
 
 			msg=self.unread[name][0]
@@ -110,8 +118,9 @@ class skypeIndicator:
 					user.SaveAvatarToFile(file)
 				except Skype4Py.errors.ISkypeError:
 					h=hashlib.md5(name).hexdigest()
-					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h,name + 'jpg')
-					self.file=name + 'jpg'
+					#TODO find a way to get skype avatars on linux
+					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h,name + '.jpg')
+					self.file=name + '.jpg'
 
 				pixbuf=gtk.gdk.pixbuf_new_from_file(self.file)
 				self.indicator[name].set_property_icon("icon", pixbuf)
@@ -170,6 +179,17 @@ class skypeIndicator:
 
 		return n
 
+	def noSkype(self):
+		'''takes a title and a message to display the email notification. Returns the
+        created notification object'''
+		title='Start Skype'
+		message='Please start skype otherwise this won\'t work'
+		n = pynotify.Notification(title, message)
+		n.set_property("icon-name",gtk.STOCK_DIALOG_WARNING)
+		n.show()
+
+		return n
+
 	def get_messages(self):
 		print "checking messages"
 		self.unread={}
@@ -202,8 +222,74 @@ class skypeIndicator:
 		print indicator.get_property("body")
 
 
+#
+#class PyApp(gtk.Window):
+#	def __init__(self):
+#		super(PyApp, self).__init__()
+#
+#		self.set_size_request(250, 100)
+#		self.set_position(gtk.WIN_POS_CENTER)
+#		self.connect("destroy", gtk.main_quit)
+#		self.set_title("Message dialogs")
+#
+#		table = gtk.Table(2, 2, True);
+#
+#		info = gtk.Button("Information")
+#		warn = gtk.Button("Warning")
+#		ques = gtk.Button("Question")
+#		erro = gtk.Button("Error")
+#
+#		info.connect("clicked", self.on_info)
+#		warn.connect("clicked", self.on_warn)
+#		ques.connect("clicked", self.on_ques)
+#		erro.connect("clicked", self.on_erro)
+#
+#		table.attach(info, 0, 1, 0, 1)
+#		table.attach(warn, 1, 2, 0, 1)
+#		table.attach(ques, 0, 1, 1, 2)
+#		table.attach(erro, 1, 2, 1, 2)
+#
+#		self.add(table)
+#		self.show_all()
+#
+#	def on_info(self, widget):
+#		md = gtk.MessageDialog(self,
+#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_INFO,
+#							   gtk.BUTTONS_CLOSE, "Download completed")
+#		md.run()
+#		md.destroy()
+#
+#
+#	def on_erro(self, widget):
+#		md = gtk.MessageDialog(self,
+#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR,
+#							   gtk.BUTTONS_CLOSE, "Error loading file")
+#		md.run()
+#		md.destroy()
+#
+#
+#	def on_ques(self, widget):
+#		md = gtk.MessageDialog(self,
+#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION,
+#							   gtk.BUTTONS_CLOSE, "Are you sure to quit?")
+#		md.run()
+#		md.destroy()
+#
+#
+#	def on_warn(self, widget):
+#		md = gtk.MessageDialog(self,
+#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_WARNING,
+#							   gtk.BUTTONS_CLOSE, "Unallowed operation")
+#		md.run()
+#		md.destroy()
+#
+#
+
+
 if __name__ == "__main__":
 	
+	#
+	#PyApp()
 	skypeind=skypeIndicator()
 
 	# Loop
