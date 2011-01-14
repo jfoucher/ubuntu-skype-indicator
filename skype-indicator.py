@@ -32,7 +32,6 @@ import gtk
 import hashlib
 import Skype4Py
 import urllib
-import sys
 import os
 
 
@@ -72,7 +71,7 @@ class skypeIndicator:
 				self.skype.Client.Start()
 		except:
 			#
-			print "Please open skype first", gtk.STOCK_DIALOG_ERROR
+			print "Please open skype first"
 			self.noSkype()
 
 
@@ -80,82 +79,104 @@ class skypeIndicator:
 		try:
 			self.skype.Attach()
 		except Skype4Py.errors.ISkypeAPIError:
-			print "Please open skype first", gtk.STOCK_DIALOG_ERROR
+			print "Please open skype first"
 			self.noSkype()
 			#pass
 
 	def create_indicators(self):
 
-		self.count={}
+		"""Loads skype messages, displays them as notification bubbles and also shows them in the messaging menu"""
 
+		#initialize count dictionaries
+		self.count={}
+		#get unread messages from skype, set self.unread variable
 		self.get_messages()
 
-			
+		#self.unread is a dictionary having the username of the sender as key and a list of messages as value
 		for name in self.unread:
 
+			# Here we look at the first message from this user to set the messaging menu indicator
+			# we only want one indicator per user
 			msg=self.unread[name][0]
 
+			#initialize message count for this user
 			if name not in self.count:
 				self.count[name]=0
 			if name not in self.oldcount:
 				self.oldcount[name]=0
 
-			if not name in self.indicator:
+			# if this user doesn't have his indicator yet
+			if name not in self.indicator:
+				# create indicator
 				self.indicator[name] = indicate.Indicator()
 				print "creating indicator"
-	#			for slot in dir(self.indicator[name]):
-	#				attr = getattr(self.indicator[name], slot)
-	#				print attr
+
+				# Set indicator properties
 				self.fullname=self.name_from_handle(name)
 				self.indicator[name].set_property("subtype", "im")
 				self.indicator[name].set_property("sender", self.fullname )
 				self.indicator[name].set_property("handle", name)
+
+				#this gets the most user-friendly name available for this user
 				user=self.user_from_handle(name)
 
-
+				# get an avatar for this user
 				try:
+					# This will only work on windows
 					self.file=name + '.jpg'
 					user.SaveAvatarToFile(file)
 				except Skype4Py.errors.ISkypeError:
+					# So on linux we use a generated monster ID. Fun but useless!
 					h=hashlib.md5(name).hexdigest()
 					#TODO find a way to get skype avatars on linux
 					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h,name + '.jpg')
 					self.file=name + '.jpg'
 
+				#convert the imge to a pixbuf
 				pixbuf=gtk.gdk.pixbuf_new_from_file(self.file)
+				# for use in the indicator
 				self.indicator[name].set_property_icon("icon", pixbuf)
 
-
+				# set the timestamp of the indicator (this is what makes the indicator display the time since the message was received
 				self.indicator[name].set_property_time("time", msg.Timestamp)
+
 				self.indicator[name].show()
+				# when the user clicks on the indicator message, open the skype messaging window for this user
 				self.indicator[name].connect("user-display", self.display_msg)
 				
 			msgbody = ''
+			#reverse list so latest message is at the bottom
 			for eachmsg in self.unread[name][::-1]:
+				# msgbody contains all the messages from that user so far
 				msgbody += eachmsg.Body + "\n"
+
+			# We set this person's indicator body to the compound text
 			self.indicator[name].set_property("body", msgbody)
+
+			# if there are more than one message from this user, we set the indicator count to be displayed in the messaging menu.
+			# Otherwise the time elapsed since receiving the message will be shown
 			if self.count[name] > 1:
 				self.indicator[name].set_property("count", str(self.count[name]))
 			
-
-
-
+			# If a new message arrived since last time checked, mark notification as not shown
 			if self.count[name] > self.oldcount[name]:
 				self.notifShown[name]=False
 
+			#If notification marked as not shown, show it
 			if not self.notifShown.get(name, False) and self.showNotification(self.fullname, msgbody, self.file):
+				#mark notification as shown
 				self.notifShown[name]=True
+
 				self.indicator[name].set_property("draw-attention", "true")
 				self.indicator[name].show()
 				print "notification shown for", name
 
 			print "%d messages from %s" %(self.count[name],name)
-				
-			#print self.indicator[name].get_property("sender")
-
+		# Set oldcountt variable for next loop
 		self.oldcount=self.count
+		# Loop runs as long as true is returned
 		return True
-		#print name
+
 
 	def name_from_handle(self,handle):
 		user=self.skype.User(handle)
@@ -174,17 +195,17 @@ class skypeIndicator:
         created notification object'''
 
 		n = pynotify.Notification(title, message, "notification-message-im")
-		n.set_property("icon-name",os.getcwd() + "/" + file)
+		if file is not None:
+			n.set_property("icon-name",os.getcwd() + "/" + file)
 		n.show()
 
 		return n
 
 	def noSkype(self):
-		'''takes a title and a message to display the email notification. Returns the
-        created notification object'''
+		'''Shows a notification if skype is not started'''
 		title='Start Skype'
 		message='Please start skype otherwise this won\'t work'
-		n = pynotify.Notification(title, message)
+		n = self.showNotification(title, message)
 		n.set_property("icon-name",gtk.STOCK_DIALOG_WARNING)
 		n.show()
 
@@ -194,102 +215,35 @@ class skypeIndicator:
 		print "checking messages"
 		self.unread={}
 
-		#print self.skype.MissedMessages
 		for msg in self.skype.MissedMessages:
 			display_name = msg.FromHandle
 			if display_name not in self.count:
 				self.count[display_name]=0
-
-
-
 			if not display_name in self.unread:
 				self.unread[display_name]=[]
 			
 			self.unread[display_name].append(msg)
 			self.count[display_name]+=1
-		#print self.unread
 		return self.unread
 
 
 
 	def server_display(self, widget, timestamp=None):
+		#Show main Skype window
 		self.skype.Client.Focus()
 
 	def display_msg(self, indicator, timestamp):
+		#hide this indicator
 		indicator.hide()
+		#messaging menu goes back to normal
 		indicator.set_property("draw-attention", "false")
+		# open the skype chat window for this user
 		self.skype.Client.OpenMessageDialog(indicator.get_property("handle"))
-		print indicator.get_property("body")
 
-
-#
-#class PyApp(gtk.Window):
-#	def __init__(self):
-#		super(PyApp, self).__init__()
-#
-#		self.set_size_request(250, 100)
-#		self.set_position(gtk.WIN_POS_CENTER)
-#		self.connect("destroy", gtk.main_quit)
-#		self.set_title("Message dialogs")
-#
-#		table = gtk.Table(2, 2, True);
-#
-#		info = gtk.Button("Information")
-#		warn = gtk.Button("Warning")
-#		ques = gtk.Button("Question")
-#		erro = gtk.Button("Error")
-#
-#		info.connect("clicked", self.on_info)
-#		warn.connect("clicked", self.on_warn)
-#		ques.connect("clicked", self.on_ques)
-#		erro.connect("clicked", self.on_erro)
-#
-#		table.attach(info, 0, 1, 0, 1)
-#		table.attach(warn, 1, 2, 0, 1)
-#		table.attach(ques, 0, 1, 1, 2)
-#		table.attach(erro, 1, 2, 1, 2)
-#
-#		self.add(table)
-#		self.show_all()
-#
-#	def on_info(self, widget):
-#		md = gtk.MessageDialog(self,
-#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_INFO,
-#							   gtk.BUTTONS_CLOSE, "Download completed")
-#		md.run()
-#		md.destroy()
-#
-#
-#	def on_erro(self, widget):
-#		md = gtk.MessageDialog(self,
-#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR,
-#							   gtk.BUTTONS_CLOSE, "Error loading file")
-#		md.run()
-#		md.destroy()
-#
-#
-#	def on_ques(self, widget):
-#		md = gtk.MessageDialog(self,
-#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION,
-#							   gtk.BUTTONS_CLOSE, "Are you sure to quit?")
-#		md.run()
-#		md.destroy()
-#
-#
-#	def on_warn(self, widget):
-#		md = gtk.MessageDialog(self,
-#							   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_WARNING,
-#							   gtk.BUTTONS_CLOSE, "Unallowed operation")
-#		md.run()
-#		md.destroy()
-#
-#
 
 
 if __name__ == "__main__":
-	
-	#
-	#PyApp()
+
 	skypeind=skypeIndicator()
 
 	# Loop
