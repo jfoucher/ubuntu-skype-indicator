@@ -42,49 +42,39 @@ class skypeIndicator:
 	indicator={}
 
 	def __init__(self):
-		#self.no_skype()
+		print "init:"
+
 		#get skype control
 		self.skype= Skype4Py.Skype()
-		
 		self.loadSkype()
 
 		#create notification icon
-
 		self.server = indicate.indicate_server_ref_default()
 		self.server.set_type("message.im")
 		self.server.set_desktop_file("/usr/share/applications/skype.desktop")
 		self.server.connect("server-display", self.server_display)
-		#self.server.set_status (indicate.STATUS_ACTIVE)
 		self.server.show()
-#		for slot in dir(self.server):
-#			attr = getattr(self.server, slot)
-#			print attr
 
-		#self.unread={}
-		#self.indicator.set_property('draw-attention', 'true');
 		self.create_indicators()
-		#pass
-		#indicator.connect("user-display", self.display_msg)
+
 	def loadSkype(self):
+		print "loadSkype:"
+		#Check that skype is running, otherwise - start it and wait for 5 secs
 		try:
 			if not self.skype.Client.IsRunning:
 				self.skype.Client.Start()
 		except:
-			#
-			print "Please open skype first"
-			self.noSkype()
-
-
+			print "loadSkype: Starting up Skype"
+			os.system("skype &")
+			print "loadSkype: Waiting 10 seconds..."
+			time.sleep(10)
 
 		try:
 			self.skype.Attach()
-		except Skype4Py.errors.ISkypeAPIError:
-			print "Please open skype first"
-			self.noSkype()
-			#pass
+		except Skype4Py.errors.SkypeAPIError:
+			print "loadSkype: Can't attach to Skype"
 
 	def create_indicators(self):
-
 		"""Loads skype messages, displays them as notification bubbles and also shows them in the messaging menu"""
 
 		#initialize count dictionaries
@@ -92,9 +82,8 @@ class skypeIndicator:
 		#get unread messages from skype, set self.unread variable
 		self.get_messages()
 
-		#self.unread is a dictionary having the username of the sender as key and a list of messages as value
+		#self.unread is a dictionary having the username of the sender or chat name as key and a list of messages as value
 		for name in self.unread:
-
 			# Here we look at the first message from this user to set the messaging menu indicator
 			# we only want one indicator per user
 			msg=self.unread[name][0]
@@ -109,7 +98,7 @@ class skypeIndicator:
 			if name not in self.indicator:
 				# create indicator
 				self.indicator[name] = indicate.Indicator()
-				print "creating indicator"
+				print "create_indicators: creating indicator for %s" % name
 
 				# Set indicator properties
 				self.fullname=self.name_from_handle(name)
@@ -120,17 +109,18 @@ class skypeIndicator:
 				#this gets the most user-friendly name available for this user
 				user=self.user_from_handle(name)
 
-				# get an avatar for this user
+				#Prepare a filename
+				self.file=os.path.join(os.path.expanduser("~/.cache/ubuntu-skype-indicator"), "%s.jpg" % self.fullname)
+
+				# get an avatar for this user/chat
 				try:
 					# This will only work on windows
-					self.file=name + '.jpg'
-					user.SaveAvatarToFile(file)
-				except Skype4Py.errors.ISkypeError:
+					user.SaveAvatarToFile(self.file)
+				except:
 					# So on linux we use a generated monster ID. Fun but useless!
 					h=hashlib.md5(name).hexdigest()
 					#TODO find a way to get skype avatars on linux
-					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h,name + '.jpg')
-					self.file=name + '.jpg'
+					urllib.urlretrieve('http://friedcellcollective.net/monsterid/monster/%s/64' % h, self.file)
 
 				#convert the imge to a pixbuf
 				pixbuf=gtk.gdk.pixbuf_new_from_file(self.file)
@@ -179,16 +169,24 @@ class skypeIndicator:
 
 
 	def name_from_handle(self,handle):
-		user=self.skype.User(handle)
-		if user.FullName:
-			return user.FullName
-		elif user.DisplayName:
-			return user.DisplayName
+		print "name_from_handle for %s" % handle
+		if '#' in handle:
+			return self.skype.Chat(handle).FriendlyName
 		else:
-			return handle
+			user=self.skype.User(handle)
+			if user.DisplayName:
+				return user.DisplayName
+			elif user.FullName:
+				return user.FullName
+			else:
+				return handle
 
 	def user_from_handle(self,handle):
-		return self.skype.User(handle)
+		print "user_from_handle for %s" % handle
+		if '#' in handle:
+			return self.skype.Chat(handle)
+		else:
+			return self.skype.User(handle)
 
 	def showNotification(self, title, message,file=None):
 		'''takes a title and a message to display the email notification. Returns the
@@ -201,32 +199,30 @@ class skypeIndicator:
 
 		return n
 
-	def noSkype(self):
-		'''Shows a notification if skype is not started'''
-		title='Start Skype'
-		message='Please start skype otherwise this won\'t work'
-		n = self.showNotification(title, message)
-		n.set_property("icon-name",gtk.STOCK_DIALOG_WARNING)
-		n.show()
-
-		return n
-
 	def get_messages(self):
 		print "checking messages"
 		self.unread={}
 
 		for msg in self.skype.MissedMessages:
-			display_name = msg.FromHandle
-			if display_name not in self.count:
-				self.count[display_name]=0
-			if not display_name in self.unread:
-				self.unread[display_name]=[]
+			#Get number of people in chat
+			chat_members = len(msg.Chat.Members)
+			if (chat_members > 2):
+				#Its a chat
+				skype_name = msg.ChatName
+				#print("Adding message in chat '%s' (%s), members: %s" % (msg.Chat.FriendlyName, msg.ChatName, chat_members))
+			else:
+				#User message
+				skype_name = msg.FromHandle
+				#print("Adding message from '%s' (%s)" % (msg.FromDisplayName, msg.FromHandle))
+
+			if skype_name not in self.count:
+				self.count[skype_name]=0
+			if not skype_name in self.unread:
+				self.unread[skype_name]=[]
 			
-			self.unread[display_name].append(msg)
-			self.count[display_name]+=1
+			self.unread[skype_name].append(msg)
+			self.count[skype_name]+=1
 		return self.unread
-
-
 
 	def server_display(self, widget, timestamp=None):
 		#Show main Skype window
@@ -237,10 +233,12 @@ class skypeIndicator:
 		indicator.hide()
 		#messaging menu goes back to normal
 		indicator.set_property("draw-attention", "false")
-		# open the skype chat window for this user
-		self.skype.Client.OpenMessageDialog(indicator.get_property("handle"))
-
-
+		# open the skype chat window for this user or chat
+		handle = indicator.get_property("handle")
+		if "#" in handle:
+			self.skype.Client.OpenDialog('CHAT', handle);
+		else:
+			self.skype.Client.OpenMessageDialog(indicator.get_property("handle"))
 
 if __name__ == "__main__":
 
