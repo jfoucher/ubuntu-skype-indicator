@@ -73,9 +73,16 @@ class skypeIndicator:
 			self.skype.Attach()
 		except Skype4Py.errors.SkypeAPIError:
 			print "loadSkype: Can't attach to Skype"
+			print "Please open skype first"
+			self.noSkype()
 
 	def create_indicators(self):
 		"""Loads skype messages, displays them as notification bubbles and also shows them in the messaging menu"""
+		#Prepare a variable to store avatars
+		self.avatar_directory = os.path.expanduser("~/.cache/ubuntu-skype-indicator")
+		#Check that avatar dir exists, otherwise - create it
+		if not os.path.isdir(self.avatar_directory):
+			os.mkdir(self.avatar_directory)
 
 		#initialize count dictionaries
 		self.count={}
@@ -110,7 +117,7 @@ class skypeIndicator:
 				user=self.user_from_handle(name)
 
 				#Prepare a filename
-				self.file=os.path.join(os.path.expanduser("~/.cache/ubuntu-skype-indicator"), "%s.jpg" % self.fullname)
+				self.file=os.path.join(self.avatar_directory, "%s.jpg" % self.fullname)
 
 				# get an avatar for this user/chat
 				try:
@@ -195,6 +202,16 @@ class skypeIndicator:
 		n = pynotify.Notification(title, message, "notification-message-im")
 		if file is not None:
 			n.set_property("icon-name",os.getcwd() + "/" + file)
+		n.show()
+
+		return n
+
+	def noSkype(self):
+		'''Shows a notification if skype is not started'''
+		title='Start Skype'
+		message='Please start skype otherwise this won\'t work'
+		n = self.showNotification(title, message)
+		n.set_property("icon-name",gtk.STOCK_DIALOG_WARNING)
 		n.show()
 
 		return n
