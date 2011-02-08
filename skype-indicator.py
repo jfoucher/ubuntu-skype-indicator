@@ -145,7 +145,10 @@ class skypeIndicator:
 			#reverse list so latest message is at the bottom
 			for eachmsg in self.unread[name][::-1]:
 				# msgbody contains all the messages from that user so far
-				msgbody += eachmsg.Body + "\n"
+				if hasattr(eachmsg,'Body'):
+					msgbody += eachmsg.Body + "\n"
+				else:
+					msgbody += "Missed call"
 
 			# We set this person's indicator body to the compound text
 			self.indicator[name].set_property("body", msgbody)
@@ -238,6 +241,17 @@ class skypeIndicator:
 				self.unread[skype_name]=[]
 			
 			self.unread[skype_name].append(msg)
+			self.count[skype_name]+=1
+
+		print "checking calls"
+		for call in self.skype.MissedCalls:
+			skype_name = call.PartnerHandle
+			if skype_name not in self.count:
+				self.count[skype_name]=0
+			if not skype_name in self.unread:
+				self.unread[skype_name]=[]
+			
+			self.unread[skype_name].append(call)
 			self.count[skype_name]+=1
 		return self.unread
 
