@@ -201,7 +201,7 @@ class skypeIndicator:
 
 		n = pynotify.Notification(title, message, "notification-message-im")
 		if file is not None:
-			n.set_property("icon-name",os.getcwd() + "/" + file)
+			n.set_property("icon-name",file)
 		n.show()
 
 		return n
